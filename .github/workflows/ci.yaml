@@ -1,0 +1,26 @@
+name: ci
+
+on:
+  push:
+    tags:
+    branches:
+      - main
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+# None by default.
+permissions: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      # publish-unit-test-result-action writes a comment to the PR
+      pull-requests: write
+      #  " writes to the checks API
+      checks: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+      - run: go build ./...
