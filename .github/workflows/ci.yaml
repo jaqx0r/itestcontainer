@@ -29,5 +29,6 @@ jobs:
           bazelisk-cache: true
           disk-cache: ${{ github.workflow }}
           repository-cache: true
+      - run: sudo apt install -y containerd
       - run: bazel test //... --test_output=streamed
         working-directory: test
