@@ -29,5 +29,5 @@ jobs:
           bazelisk-cache: true
           disk-cache: ${{ github.workflow }}
           repository-cache: true
-      - run: bazel test //...
+      - run: bazel test //... --test_output=streamed
         working-directory: test

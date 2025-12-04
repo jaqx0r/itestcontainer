@@ -36,7 +36,7 @@ itest_service(
         "--volume=/content:sut-data",
     ],
     env = {
-        "HOME": "$TEST_TMPDIR",
+        "HOME": "$(TEST_TMPDIR)",
     },
     exe = "@com_github_jaqx0r_itestcontainer//:itestcontainer",
     health_check_interval = "1s",
