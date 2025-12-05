@@ -33,7 +33,7 @@ itest_service(
         "--name=nginx:latest",
         "--ports=$${@@//:sut:port}:80",
         "--env=HOME",
-        "--volume=/content:sut-data",
+        "--volume=content:/sut-data",
     ],
     env = {
         "HOME": "$(TEST_TMPDIR)",
