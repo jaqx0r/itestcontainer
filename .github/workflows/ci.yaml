@@ -20,6 +20,10 @@ jobs:
       pull-requests: write
       #  " writes to the checks API
       checks: write
+    services:
+      docker:
+        image: docker:dind
+        options: --privileged --shm-size=2g
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
@@ -29,6 +33,6 @@ jobs:
           bazelisk-cache: true
           disk-cache: ${{ github.workflow }}
           repository-cache: true
-      - run: sudo apt install -y containerd
+      - run: docker info
       - run: bazel test //... --test_output=streamed
         working-directory: test
