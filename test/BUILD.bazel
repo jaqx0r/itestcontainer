@@ -17,6 +17,7 @@ image_manifest(
 image_load(
     name = "load_nginx_image",
     image = ":nginx",
+    strategy = "eager",
     tag = "nginx:latest",
 )
 
