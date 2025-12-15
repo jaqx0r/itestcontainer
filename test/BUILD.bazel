@@ -1,0 +1,50 @@
+load("@rules_img//img:image.bzl", "image_manifest")
+load("@rules_img//img:load.bzl", "image_load")
+load("@rules_itest//:itest.bzl", "itest_service", "itest_task")
+
+platform(
+    name = "host_container_platform",
+    constraint_values = ["@platforms//os:linux"],
+    parents = ["@platforms//host"],
+)
+
+image_manifest(
+    name = "nginx",
+    base = "@nginx",
+    platform = ":host_container_platform",
+)
+
+image_load(
+    name = "load_nginx_image",
+    image = ":nginx",
+    strategy = "eager",
+    tag = "nginx:latest",
+)
+
+itest_task(
+    name = "load_nginx_image_task",
+    testonly = True,
+    exe = ":load_nginx_image",
+)
+
+itest_service(
+    name = "sut",
+    testonly = True,
+    args = [
+        "--name=nginx:latest",
+        "--ports=$${@@//:sut:port}:80",
+        "--env=HOME",
+        "--volume=content:/sut-data",
+    ],
+    env = {
+        "HOME": "$(TEST_TMPDIR)",
+    },
+    exe = "@com_github_jaqx0r_itestcontainer//:itestcontainer",
+    health_check_interval = "1s",
+    health_check_timeout = "5s",
+    http_health_check_address = "http://127.0.0.1:$${@@//:sut:port}",
+    named_ports = [
+        "port",
+    ],
+    deps = [":load_nginx_image_task"],
+)

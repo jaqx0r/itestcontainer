@@ -63,3 +63,7 @@ itest_service(
 )
 
 ```
+
+Use the Go Tools Pattern to include `itestcontainer` into your dependencies.
+
+See [`test/tools.go`](test/tools.go) and the rest of the test directory for a full example.
