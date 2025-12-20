@@ -35,4 +35,4 @@ jobs:
           repository-cache: true
       - run: docker info
       - run: bazel test //... --test_output=streamed
-        working-directory: test
+        working-directory: e2e
