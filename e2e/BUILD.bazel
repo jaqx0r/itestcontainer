@@ -32,7 +32,7 @@ itest_service(
     testonly = True,
     args = [
         "--name=nginx:latest",
-        "--ports=$${@@//:sut:port}:80",
+        "--ports=80:$${@@//:sut:port}",
         "--env=HOME",
         "--volume=content:/sut-data",
     ],
