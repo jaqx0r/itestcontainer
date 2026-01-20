@@ -131,12 +131,12 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		<-ctx.Done()
 		name := c.GetContainerID()
-		n, err := c.Inspect(ctx)
-		if err != nil {
+		n, err := c.Inspect(context.Background())
+		if err == nil {
 			name = n.Name
 		}
-		<-ctx.Done()
 		log.Println("Stopping ", name)
 		testcontainers.TerminateContainer(c)
 	}()
@@ -144,6 +144,7 @@ func main() {
 	log.Println("Waiting, press Ctrl-C to shutdown")
 	<-ctx.Done()
 	stop()
+	
 	wg.Wait()
 	log.Println("itestcontainer done")
 }
