@@ -1,0 +1,10 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+      "config:recommended",
+
+      // Automerge all updates when they pass checks.
+	  ":automergeAll",
+	  ":automergePr"
+  ]
+}
