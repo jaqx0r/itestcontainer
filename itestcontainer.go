@@ -1,17 +1,14 @@
-// itestcontainer is a runner shim invoked by `rules_itest`'s `itest_service` as an `exe` to launch a container image, using `testcontainers`.
+// itestcontainer is a runner shim invoked by a `rules_itest`'s `itest_service` as an `exe` to launch a container image with `testcontainers`.
 //
-// Pass the name of the container, any environment the container needs, and any volumes to mount.
-//
-// Exposed ports are inferred from the ASSIGNED_PORTS environment variable. Use
-// the `named_ports` parameter to `itest_service` and use the internal port to
-// expose as the port name.  `itest` will assign a port on the host.
+// Pass the name of the container, any environment the container needs, volume
+// mounts, port assignments, and labels.
 //
 // Volumes exist in the Docker volume space on the host, but are identified
-// with the prefix `bazel-itest-`, and if run with the text execution
-// environment in Bazel (i.e. with the environment variable `TEST_TARGET` set)
-// then a hash that uniquely identifies the test will be appended to the volume
-// name.  This allows tests to run concurrently but avoid contention and
-// potential locking issues when sharing a volume name.
+// internally with the prefix `bazel-itest-`.  If run inside the Bazel test
+// execution environment (i.e. with the environment variable `TEST_TARGET` set)
+// then that string is hashed and appended to the volume name.  This allows
+// each `itest_service` to run concurrently, avoiding contention and potential
+// locking issues.
 package main
 
 import (
