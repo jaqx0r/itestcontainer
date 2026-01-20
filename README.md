@@ -46,7 +46,7 @@ itest_service(
         # Environment variables to pass through to the container
         "--env=POSTGRES_USER,POSTGRES_PASSWORD,POSTGRES_DB",
         # Ports to expose from the container
-        "--ports=5432:$${@@:sut:5432}"
+        "--ports=$${@@//:sut:db}:5432"
         # --labels
         # --volume
     ],
@@ -57,7 +57,7 @@ itest_service(
     },
     exe = "@com_github_jaqx0r_itestcontainer//:itestcontainer",
     named_ports = [
-        "5432",
+        "db",
     ],
     deps = [":load_pg_image_task"],
 )

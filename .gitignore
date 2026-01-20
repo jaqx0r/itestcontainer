@@ -1,4 +1,1 @@
-/test/bazel-bin
-/test/bazel-out
-/test/bazel-test
-/test/bazel-testlogs
+/e2e/bazel-*
