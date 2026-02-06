@@ -18,7 +18,7 @@ pull = use_repo_rule("@rules_img//img:pull.bzl", "pull")
 
 pull(
     name = "nginx",
-    digest = "sha256:d05439fd0896b9912b6a129e8570328ed51554a16032baa1b6051f3eba459cf3",
+    digest = "sha256:a716a2895ddba4fa7fca05e1003579f76d3d304932781426a211bc72b51f0c4e",
     registry = "index.docker.io",
     repository = "library/nginx",
     tag = "1.29.5-alpine-slim",
