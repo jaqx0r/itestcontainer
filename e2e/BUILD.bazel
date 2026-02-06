@@ -1,6 +1,6 @@
 load("@rules_img//img:image.bzl", "image_manifest")
 load("@rules_img//img:load.bzl", "image_load")
-load("@rules_itest//:itest.bzl", "itest_service", "itest_task")
+load("@rules_itest//:itest.bzl", "itest_service", "itest_task", "named_port")
 
 platform(
     name = "host_container_platform",
@@ -32,7 +32,7 @@ itest_service(
     testonly = True,
     args = [
         "--name=nginx:latest",
-        "--ports=$${@@//:sut:port}:80",
+        "--ports=" + named_port("//:sut", "http") + ":80",
         "--env=HOME",
         "--volume=content:/sut-data",
     ],
@@ -42,9 +42,9 @@ itest_service(
     exe = "@com_github_jaqx0r_itestcontainer//:itestcontainer",
     health_check_interval = "1s",
     health_check_timeout = "20s",
-    http_health_check_address = "http://127.0.0.1:$${@@//:sut:port}",
+    http_health_check_address = "http://127.0.0.1:" + named_port("//:sut", "http"),
     named_ports = [
-        "port",
+        "http",
     ],
     deps = [":load_nginx_image_task"],
 )
