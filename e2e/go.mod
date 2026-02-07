@@ -2,7 +2,7 @@ module github.com/jaqx0r/itestcontainer/test
 
 go 1.24.9
 
-require github.com/jaqx0r/itestcontainer v0.0.0
+require github.com/jaqx0r/itestcontainer v0.0.1
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
