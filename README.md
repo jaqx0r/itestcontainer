@@ -7,7 +7,7 @@ Example:
 ```skylark
 load("@rules_img//img:image.bzl", "image_manifest")
 load("@rules_img//img:load.bzl", "image_load")
-load("@rules_itest//:itest.bzl", "itest_service", "itest_task")
+load("@rules_itest//:itest.bzl", "itest_service", "itest_task", "named_port")
 
 platform(
     name = "host_docker_platform",
@@ -45,8 +45,8 @@ itest_service(
         "--name=pg_image:latest",
         # Environment variables to pass through to the container
         "--env=POSTGRES_USER,POSTGRES_PASSWORD,POSTGRES_DB",
-        # Ports to expose from the container
-        "--ports=$${@@//:sut:db}:5432"
+        # Ports to expose from the container, using `rules_test`'s helper macro
+        "--ports=" + named_port("//:sut", "db") + ":5432",
         # --labels
         # --volume
     ],
