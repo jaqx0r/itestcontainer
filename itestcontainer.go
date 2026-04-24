@@ -18,12 +18,15 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/netip"
 	"os"
 	"os/signal"
 	"strings"
 	"sync"
 	"syscall"
 
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
 	"github.com/testcontainers/testcontainers-go"
 )
 
@@ -53,11 +56,23 @@ func main() {
 	wg := sync.WaitGroup{}
 
 	exposedPorts := make([]string, 0)
+	portBindings := network.PortMap{}
 	for portMap := range strings.SplitSeq(*ports, ",") {
 		if portMap == "" {
 			continue
 		}
-		exposedPorts = append(exposedPorts, portMap)
+		portPair := strings.Split(portMap, ":")
+		if len(portPair) != 2 {
+			continue
+		}
+		exposedPorts = append(exposedPorts, portPair[1])
+		portBindings[network.MustParsePort(portPair[1])] = []network.PortBinding{
+			{
+				HostIP:   netip.MustParseAddr("127.0.0.1"),
+				HostPort: portPair[0],
+			},
+		}
+
 	}
 	log.Println("Exposed Ports:", exposedPorts)
 
@@ -117,6 +132,9 @@ func main() {
 
 	c, err := testcontainers.Run(ctx, *name,
 		testcontainers.WithExposedPorts(exposedPorts...),
+		testcontainers.WithHostConfigModifier(func(hostConfig *container.HostConfig) {
+			hostConfig.PortBindings = portBindings
+		}),
 		testcontainers.WithLogConsumers(logConsumer),
 		testcontainers.WithEnv(environment),
 		testcontainers.WithMounts(mounts...),
@@ -141,7 +159,7 @@ func main() {
 	log.Println("Waiting, press Ctrl-C to shutdown")
 	<-ctx.Done()
 	stop()
-	
+
 	wg.Wait()
 	log.Println("itestcontainer done")
 }
