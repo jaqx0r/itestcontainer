@@ -8,7 +8,7 @@
 	  ":automergePr"
   ],
     "postUpdateOptions": [
-        "goModTidy",
+        "goModTidyE",
         "gomodUpdateImportPaths",
     ],
 }
