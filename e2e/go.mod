@@ -1,6 +1,6 @@
 module github.com/jaqx0r/itestcontainer/test
 
-go 1.24.9
+go 1.26.2
 
 require github.com/jaqx0r/itestcontainer v0.0.1
 
