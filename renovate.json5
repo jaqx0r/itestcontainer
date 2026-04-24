@@ -6,5 +6,9 @@
       // Automerge all updates when they pass checks.
 	  ":automergeAll",
 	  ":automergePr"
-  ]
+  ],
+    "postUpdateOptions": [
+        "goModTidy",
+        "gomodUpdateImportPaths",
+    ],
 }
