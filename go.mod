@@ -1,6 +1,6 @@
 module github.com/jaqx0r/itestcontainer
 
-go 1.26.2
+go 1.26.1
 
 require github.com/testcontainers/testcontainers-go v0.42.0
 
