@@ -13,20 +13,17 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"flag"
 	"fmt"
 	"log"
-	"net/netip"
 	"os"
 	"os/signal"
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/moby/moby/api/types/container"
-	"github.com/moby/moby/api/types/network"
 	"github.com/testcontainers/testcontainers-go"
 )
 
@@ -36,10 +33,22 @@ var (
 	env    = flag.String("env", "", "KEY[,KEY] list of environment variable names to pass through to the container")
 	ports  = flag.String("ports", "", "exposed port mappings to pass to container")
 	labels = flag.String("labels", "", "labels to set on container")
+	cmd    = flag.String("cmd", "", "command to run in container (space-separated)")
 )
 
-type logConsumer struct {
+// Config holds all parameters needed to launch a container.
+type Config struct {
+	Name       string
+	Ports      string
+	Env        string
+	Volume     string
+	Labels     string
+	Cmd        string
+	TestTarget string
+	EnvLookup  func(string) (string, bool)
 }
+
+type logConsumer struct{}
 
 func (logConsumer) Accept(l testcontainers.Log) {
 	log.Printf("%s: %s", l.LogType, l.Content)
@@ -48,118 +57,104 @@ func (logConsumer) Accept(l testcontainers.Log) {
 func main() {
 	flag.Parse()
 
-	if *name == "" {
-		log.Fatal("`name` must be set")
+	cfg := Config{
+		Name:       *name,
+		Ports:      *ports,
+		Env:        *env,
+		Volume:     *volume,
+		Labels:     *labels,
+		Cmd:        *cmd,
+		TestTarget: os.Getenv("TEST_TARGET"),
+		EnvLookup:  os.LookupEnv,
 	}
 
+	if err := run(cfg); err != nil {
+		log.Print(err)
+		os.Exit(1)
+	}
+}
+
+func run(cfg Config) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	wg := sync.WaitGroup{}
+	defer stop()
+	return runWithContext(ctx, stop, cfg)
+}
 
-	exposedPorts := make([]string, 0)
-	portBindings := network.PortMap{}
-	for portMap := range strings.SplitSeq(*ports, ",") {
-		if portMap == "" {
-			continue
-		}
-		portPair := strings.Split(portMap, ":")
-		if len(portPair) != 2 {
-			continue
-		}
-		exposedPorts = append(exposedPorts, portPair[1])
-		portBindings[network.MustParsePort(portPair[1])] = []network.PortBinding{
-			{
-				HostIP:   netip.MustParseAddr("127.0.0.1"),
-				HostPort: portPair[0],
-			},
-		}
+func runWithContext(ctx context.Context, stop context.CancelFunc, cfg Config) error {
+	if cfg.Name == "" {
+		return fmt.Errorf("`name` must be set")
+	}
 
+	exposedPorts, portBindings, err := parsePorts(cfg.Ports)
+	if err != nil {
+		return fmt.Errorf("parsePorts: %w", err)
 	}
 	log.Println("Exposed Ports:", exposedPorts)
 
-	environment := make(map[string]string, 0)
-	for envVar := range strings.SplitSeq(*env, ",") {
-		if envVar == "" {
-			continue
-		}
-		value := os.Getenv(envVar)
-		if value == "" {
-			log.Fatalf("No environment variable found: %q", envVar)
-		}
-		environment[envVar] = value
+	environment, err := parseEnvironment(cfg.Env, cfg.EnvLookup)
+	if err != nil {
+		return fmt.Errorf("parseEnvironment: %w", err)
 	}
 	log.Println("Environment:", environment)
 
-	// Create a mount name suffix for the volume based on TEST_TARGET.
-	suffix := ""
-	testTarget := os.Getenv("TEST_TARGET")
-	if testTarget != "" {
-		hasher := sha256.New()
-		hasher.Write([]byte(testTarget))
-		hB := hasher.Sum(nil)
-		suffix = hex.EncodeToString(hB)
-	}
-	mounts := make([]testcontainers.ContainerMount, 0)
-	for volumeMount := range strings.SplitSeq(*volume, ",") {
-		if volumeMount == "" {
-			continue
-		}
-		parts := strings.SplitN(volumeMount, ":", 2)
-		volumeName := ""
-		if suffix != "" {
-			volumeName = fmt.Sprintf("bazel-itest-%s-%s", parts[0], suffix)
-		} else {
-			volumeName = fmt.Sprintf("bazel-itest-%s", parts[0])
-		}
-		mounts = append(mounts,
-			testcontainers.ContainerMount{
-				Source: testcontainers.GenericVolumeMountSource{Name: volumeName},
-				Target: testcontainers.ContainerMountTarget(parts[1]),
-			})
-	}
+	suffix := volumeSuffix(cfg.TestTarget)
+	mounts := parseVolumes(cfg.Volume, suffix)
 	log.Println("Volume Mounts:", mounts)
 
-	labelMap := make(map[string]string, 0)
-	for label := range strings.SplitSeq(*labels, ",") {
-		if label == "" {
-			continue
-		}
-		pair := strings.SplitN(label, "=", 2)
-		labelMap[pair[0]] = pair[1]
+	labelMap, err := parseLabels(cfg.Labels)
+	if err != nil {
+		return fmt.Errorf("parseLabels: %w", err)
 	}
 	log.Println("Labels:", labelMap)
 
-	logConsumer := logConsumer{}
+	lc := logConsumer{}
 
-	c, err := testcontainers.Run(ctx, *name,
+	opts := []testcontainers.ContainerCustomizer{
 		testcontainers.WithExposedPorts(exposedPorts...),
 		testcontainers.WithHostConfigModifier(func(hostConfig *container.HostConfig) {
 			hostConfig.PortBindings = portBindings
 		}),
-		testcontainers.WithLogConsumers(logConsumer),
+		testcontainers.WithLogConsumers(lc),
 		testcontainers.WithEnv(environment),
 		testcontainers.WithMounts(mounts...),
 		testcontainers.WithLabels(labelMap),
-	)
-	if err != nil {
-		log.Fatalf("testcontainers.Run(%v): %v", *name, err)
 	}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		<-ctx.Done()
-		name := c.GetContainerID()
-		n, err := c.Inspect(context.Background())
-		if err == nil {
-			name = n.Name
-		}
-		log.Println("Stopping ", name)
-		testcontainers.TerminateContainer(c)
-	}()
-	log.Println("Started", *name)
+	if cfg.Cmd != "" {
+		opts = append(opts, testcontainers.WithCmd(strings.Fields(cfg.Cmd)...))
+	}
+
+	c, err := testcontainers.Run(ctx, cfg.Name, opts...)
+
+	wg := sync.WaitGroup{}
+	if c != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-ctx.Done()
+			containerName := c.GetContainerID()
+			inspectCtx, inspectCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer inspectCancel()
+			if n, inspectErr := c.Inspect(inspectCtx); inspectErr == nil {
+				containerName = n.Name
+			}
+			log.Println("Stopping", containerName)
+			if termErr := testcontainers.TerminateContainer(c); termErr != nil {
+				log.Printf("failed to terminate container %s: %v", containerName, termErr)
+			}
+		}()
+	}
+
+	if err != nil {
+		stop()
+		wg.Wait()
+		return fmt.Errorf("testcontainers.Run(%v): %w", cfg.Name, err)
+	}
+
+	log.Println("Started", cfg.Name)
 	log.Println("Waiting, press Ctrl-C to shutdown")
 	<-ctx.Done()
 	stop()
-
 	wg.Wait()
 	log.Println("itestcontainer done")
+	return nil
 }
