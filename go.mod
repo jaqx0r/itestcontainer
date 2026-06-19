@@ -3,7 +3,7 @@ module github.com/jaqx0r/itestcontainer
 go 1.26.1
 
 require (
-	github.com/moby/moby/api v1.54.2
+	github.com/moby/moby/api v1.55.0
 	github.com/moby/moby/client v0.4.0
 	github.com/testcontainers/testcontainers-go v0.43.0
 )
