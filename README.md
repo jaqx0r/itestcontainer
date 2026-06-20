@@ -2,6 +2,33 @@
 
 `itestcontainer` is a runner shim invoked by [`rules_itest`](https://github.com/dzbarsky/rules_itest)'s [`itest_service`](https://github.com/dzbarsky/rules_itest/blob/master/docs/itest.md#itest_service) as an `exe` to launch a container image as the system under test.
 
+## Runtime Backends
+
+`itestcontainer` supports two container runtimes:
+
+| Runtime      | Backend           | Networking               |
+|--------------|-------------------|--------------------------|
+| `docker`     | moby/moby client  | Docker bridge networking |
+| `containerd` | containerd/v2     | CNI (bridge + portmap)   |
+
+By default, `itestcontainer` auto-detects the runtime: it probes the containerd socket first (`/run/containerd/containerd.sock`), then falls back to Docker (`DOCKER_HOST` or `/var/run/docker.sock`). Override with `--runtime=docker` or `--runtime=containerd`.
+
+### containerd Prerequisites
+
+- containerd running with a socket accessible at `/run/containerd/containerd.sock`
+- CNI plugin binaries installed: `bridge`, `portmap`, `loopback` (typically under `/opt/cni/bin`)
+
+## Flags
+
+| Flag        | Description                                                               |
+|-------------|---------------------------------------------------------------------------|
+| `--name`    | Container image to start (required)                                       |
+| `--runtime` | Runtime backend: `docker` or `containerd` (default: auto-detect)         |
+| `--ports`   | Port mappings, comma-separated `<host>:<container>` (e.g. `8080:80/tcp`) |
+| `--env`     | Environment variables to pass through, comma-separated                    |
+| `--volume`  | Volume mounts, comma-separated `<source>:<target>`                        |
+| `--labels`  | Container labels, comma-separated `<key>=<value>`                         |
+
 Example:
 
 ```skylark

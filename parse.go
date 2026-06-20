@@ -5,17 +5,17 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/netip"
+	"strconv"
 	"strings"
 
-	"github.com/moby/moby/api/types/network"
-	"github.com/testcontainers/testcontainers-go"
+	"github.com/jaqx0r/itestcontainer/internal/runtime"
 )
 
 // parsePorts parses "hostPort:containerPort/proto,..." into exposed ports list and port bindings map.
 // Returns error on malformed input.
-func parsePorts(raw string) ([]string, network.PortMap, error) {
+func parsePorts(raw string) ([]string, map[runtime.Port][]runtime.PortBinding, error) {
 	exposedPorts := make([]string, 0)
-	portBindings := network.PortMap{}
+	portBindings := make(map[runtime.Port][]runtime.PortBinding)
 
 	for portMap := range strings.SplitSeq(raw, ",") {
 		if portMap == "" {
@@ -25,12 +25,22 @@ func parsePorts(raw string) ([]string, network.PortMap, error) {
 		if len(portPair) != 2 {
 			continue
 		}
-		port, portErr := network.ParsePort(portPair[1])
-		if portErr != nil {
-			return nil, nil, fmt.Errorf("invalid port %q: %w", portPair[1], portErr)
+		hostPortNum, err := strconv.Atoi(portPair[0])
+		if err != nil || hostPortNum < 1 || hostPortNum > 65535 {
+			return nil, nil, fmt.Errorf("invalid host port %q", portPair[0])
 		}
-		exposedPorts = append(exposedPorts, portPair[1])
-		portBindings[port] = []network.PortBinding{
+		// Default protocol to tcp if not specified (e.g. "80" → "80/tcp").
+		containerPortRaw := portPair[1]
+		if !strings.Contains(containerPortRaw, "/") {
+			containerPortRaw = containerPortRaw + "/tcp"
+		}
+		_, portErr := parsePort(containerPortRaw)
+		if portErr != nil {
+			return nil, nil, fmt.Errorf("invalid port %q: %w", containerPortRaw, portErr)
+		}
+		port := runtime.Port(containerPortRaw)
+		exposedPorts = append(exposedPorts, containerPortRaw)
+		portBindings[port] = []runtime.PortBinding{
 			{
 				HostIP:   netip.MustParseAddr("127.0.0.1"),
 				HostPort: portPair[0],
@@ -71,8 +81,8 @@ func volumeSuffix(testTarget string) string {
 }
 
 // parseVolumes parses "name:path,..." volume mount specs, prepending "bazel-itest-" and suffix.
-func parseVolumes(raw string, suffix string) []testcontainers.ContainerMount {
-	mounts := make([]testcontainers.ContainerMount, 0)
+func parseVolumes(raw string, suffix string) []runtime.Mount {
+	mounts := make([]runtime.Mount, 0)
 
 	for volumeMount := range strings.SplitSeq(raw, ",") {
 		if volumeMount == "" {
@@ -88,13 +98,33 @@ func parseVolumes(raw string, suffix string) []testcontainers.ContainerMount {
 		} else {
 			volumeName = fmt.Sprintf("bazel-itest-%s", parts[0])
 		}
-		mounts = append(mounts, testcontainers.ContainerMount{
-			Source: testcontainers.GenericVolumeMountSource{Name: volumeName},
-			Target: testcontainers.ContainerMountTarget(parts[1]),
+		mounts = append(mounts, runtime.Mount{
+			Type:   runtime.MountTypeVolume,
+			Source: volumeName,
+			Target: parts[1],
 		})
 	}
 
 	return mounts
+}
+
+// parsePort validates a port spec like "80/tcp". Returns the Port or an error.
+func parsePort(raw string) (runtime.Port, error) {
+	parts := strings.SplitN(raw, "/", 2)
+	if len(parts) != 2 {
+		return "", fmt.Errorf("invalid port format %q: expected <port>/<proto>", raw)
+	}
+	port, err := strconv.Atoi(parts[0])
+	if err != nil || port < 1 || port > 65535 {
+		return "", fmt.Errorf("invalid port number %q", parts[0])
+	}
+	proto := strings.ToLower(parts[1])
+	switch proto {
+	case "tcp", "udp", "sctp":
+	default:
+		return "", fmt.Errorf("invalid protocol %q", proto)
+	}
+	return runtime.Port(raw), nil
 }
 
 // parseLabels parses "key=val,..." label specs into a map.

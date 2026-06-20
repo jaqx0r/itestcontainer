@@ -5,8 +5,7 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/moby/moby/api/types/network"
-	"github.com/testcontainers/testcontainers-go"
+	"github.com/jaqx0r/itestcontainer/internal/runtime"
 )
 
 func TestParsePorts(t *testing.T) {
@@ -14,7 +13,7 @@ func TestParsePorts(t *testing.T) {
 		name             string
 		input            string
 		wantExposedCount int
-		wantBindingKey   network.Port
+		wantBindingKey   runtime.Port
 		wantHostPort     string
 		wantErr          bool
 	}{
@@ -27,7 +26,7 @@ func TestParsePorts(t *testing.T) {
 			name:             "single port mapping",
 			input:            "8080:80/tcp",
 			wantExposedCount: 1,
-			wantBindingKey:   network.MustParsePort("80/tcp"),
+			wantBindingKey:   runtime.Port("80/tcp"),
 			wantHostPort:     "8080",
 		},
 		{
@@ -43,6 +42,45 @@ func TestParsePorts(t *testing.T) {
 		{
 			name:    "invalid container port",
 			input:   "8080:notaport",
+			wantErr: true,
+		},
+		{
+			name:             "bare container port defaults to tcp",
+			input:            "8080:80",
+			wantExposedCount: 1,
+			wantBindingKey:   runtime.Port("80/tcp"),
+			wantHostPort:     "8080",
+		},
+		{
+			name:             "explicit udp proto preserved",
+			input:            "8080:80/udp",
+			wantExposedCount: 1,
+			wantBindingKey:   runtime.Port("80/udp"),
+			wantHostPort:     "8080",
+		},
+		{
+			name:    "invalid host port non-numeric",
+			input:   "abc:80/tcp",
+			wantErr: true,
+		},
+		{
+			name:    "host port zero",
+			input:   "0:80/tcp",
+			wantErr: true,
+		},
+		{
+			name:    "host port too high",
+			input:   "70000:80/tcp",
+			wantErr: true,
+		},
+		{
+			name:             "mixed bare and explicit proto",
+			input:            "8080:80,9090:443/tcp",
+			wantExposedCount: 2,
+		},
+		{
+			name:    "container port zero",
+			input:   "8080:0/tcp",
 			wantErr: true,
 		},
 	}
@@ -143,7 +181,7 @@ func TestVolumeSuffix(t *testing.T) {
 			want:  "",
 		},
 		{
-			name: "non-empty target",
+			name:  "non-empty target",
 			input: "//some:target",
 			want: func() string {
 				h := sha256.New()
@@ -213,14 +251,13 @@ func TestParseVolumes(t *testing.T) {
 				t.Fatalf("mount count: got %d, want %d", len(got), tc.wantCount)
 			}
 			for i, m := range got {
-				src, ok := m.Source.(testcontainers.GenericVolumeMountSource)
-				if !ok {
-					t.Fatalf("mount[%d] source not GenericVolumeMountSource", i)
+			if m.Type != runtime.MountTypeVolume {
+				t.Errorf("mount[%d] type: got %q, want %q", i, m.Type, runtime.MountTypeVolume)
 				}
-				if src.Name != tc.wantNames[i] {
-					t.Errorf("mount[%d] name: got %q, want %q", i, src.Name, tc.wantNames[i])
+				if m.Source != tc.wantNames[i] {
+					t.Errorf("mount[%d] source: got %q, want %q", i, m.Source, tc.wantNames[i])
 				}
-				if string(m.Target) != tc.wantTargets[i] {
+				if m.Target != tc.wantTargets[i] {
 					t.Errorf("mount[%d] target: got %q, want %q", i, m.Target, tc.wantTargets[i])
 				}
 			}

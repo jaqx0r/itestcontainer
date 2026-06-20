@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jaqx0r/itestcontainer/internal/runtime"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
 )
@@ -19,6 +20,7 @@ func TestRunWithContextTerminatesContainer(t *testing.T) {
 		Name:      "alpine:latest",
 		Cmd:       "sleep infinity",
 		Labels:    "itestcontainer-test=TestRunWithContextTerminatesContainer",
+		Runtime:   runtime.RuntimeDocker,
 		EnvLookup: func(s string) (string, bool) { return "", false },
 	}
 
