@@ -46,13 +46,26 @@ type Config struct {
 	Volume     string
 	Labels     string
 	Cmd        string
-	Runtime    string
+	Runtime    runtime.RuntimeName
 	TestTarget string
 	EnvLookup  func(string) (string, bool)
 }
 
 func main() {
 	flag.Parse()
+
+	var rt runtime.RuntimeName
+	switch *runtimeFlag {
+	case "":
+		// empty = auto-detect at run time
+	case string(runtime.RuntimeDocker):
+		rt = runtime.RuntimeDocker
+	case string(runtime.RuntimeContainerd):
+		rt = runtime.RuntimeContainerd
+	default:
+		log.Printf("unknown runtime %q: must be %q or %q", *runtimeFlag, runtime.RuntimeDocker, runtime.RuntimeContainerd)
+		os.Exit(1)
+	}
 
 	cfg := Config{
 		Name:       *name,
@@ -61,7 +74,7 @@ func main() {
 		Volume:     *volume,
 		Labels:     *labels,
 		Cmd:        *cmd,
-		Runtime:    *runtimeFlag,
+		Runtime:    rt,
 		TestTarget: os.Getenv("TEST_TARGET"),
 		EnvLookup:  os.LookupEnv,
 	}
@@ -79,12 +92,12 @@ func run(cfg Config) error {
 }
 
 // detect returns the runtime name to use, probing sockets to verify connectivity.
-func detect() string {
+func detect() runtime.RuntimeName {
 	// Try containerd socket
 	conn, err := net.DialTimeout("unix", "/run/containerd/containerd.sock", 2*time.Second)
 	if err == nil {
 		conn.Close()
-		return "containerd"
+		return runtime.RuntimeContainerd
 	}
 	// Try docker socket
 	dockerHost := os.Getenv("DOCKER_HOST")
@@ -94,15 +107,15 @@ func detect() string {
 	conn, err = net.DialTimeout("unix", dockerHost, 2*time.Second)
 	if err == nil {
 		conn.Close()
-		return "docker"
+		return runtime.RuntimeDocker
 	}
-	return "docker" // fallback default
+	return runtime.RuntimeDocker // fallback default
 }
 
 // newRuntime constructs the appropriate runtime.Runtime for the given name.
-func newRuntime(ctx context.Context, name string) (runtime.Runtime, error) {
+func newRuntime(ctx context.Context, name runtime.RuntimeName) (runtime.Runtime, error) {
 	switch name {
-	case "containerd":
+	case runtime.RuntimeContainerd:
 		return newContainerdRuntime(ctx)
 	default:
 		return docker.New(ctx)

@@ -5,6 +5,14 @@ import (
 	"net/netip"
 )
 
+// RuntimeName identifies a container runtime backend.
+type RuntimeName string
+
+const (
+	RuntimeDocker     RuntimeName = "docker"
+	RuntimeContainerd RuntimeName = "containerd"
+)
+
 // Port is a container port spec e.g. "80/tcp".
 type Port string
 
