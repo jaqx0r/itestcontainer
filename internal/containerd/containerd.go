@@ -213,13 +213,13 @@ func (r *ContainerdRuntime) buildPortMappings(opts runtime.RunOptions) []gocni.P
 		if len(parts) == 2 {
 			proto = parts[1]
 		}
-		containerPort, err := strconv.Atoi(parts[0])
-		if err != nil {
+		containerPort, err := strconv.ParseInt(parts[0], 10, 32)
+		if err != nil || containerPort < 1 || containerPort > 65535 {
 			continue
 		}
 		for _, b := range bindings {
-			hostPort, err := strconv.Atoi(b.HostPort)
-			if err != nil {
+			hostPort, err := strconv.ParseInt(b.HostPort, 10, 32)
+			if err != nil || hostPort < 1 || hostPort > 65535 {
 				continue
 			}
 			portMappings = append(portMappings, gocni.PortMapping{
