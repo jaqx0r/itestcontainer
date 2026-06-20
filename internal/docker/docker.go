@@ -43,7 +43,10 @@ func (r *DockerRuntime) Run(ctx context.Context, opts runtime.RunOptions) (runti
 	if err != nil {
 		return nil, err
 	}
-	hostConfig := r.buildHostConfig(opts)
+	hostConfig, err := r.buildHostConfig(opts)
+	if err != nil {
+		return nil, err
+	}
 
 	result, err := r.client.ContainerCreate(ctx, mobyclient.ContainerCreateOptions{
 		Config:     containerConfig,
@@ -103,12 +106,12 @@ func (r *DockerRuntime) buildContainerConfig(opts runtime.RunOptions) (*mobycont
 	return cfg, nil
 }
 
-func (r *DockerRuntime) buildHostConfig(opts runtime.RunOptions) *mobycontainer.HostConfig {
+func (r *DockerRuntime) buildHostConfig(opts runtime.RunOptions) (*mobycontainer.HostConfig, error) {
 	portBindings := make(mobynetwork.PortMap, len(opts.PortBindings))
 	for port, bindings := range opts.PortBindings {
 		mobyPort, err := mobynetwork.ParsePort(string(port))
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("invalid port binding key %q: %w", port, err)
 		}
 		var mobyBindings []mobynetwork.PortBinding
 		for _, b := range bindings {
@@ -141,7 +144,7 @@ func (r *DockerRuntime) buildHostConfig(opts runtime.RunOptions) *mobycontainer.
 	return &mobycontainer.HostConfig{
 		PortBindings: portBindings,
 		Mounts:       mounts,
-	}
+	}, nil
 }
 
 // dockerContainer is a running Docker container handle.

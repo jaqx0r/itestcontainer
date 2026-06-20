@@ -25,6 +25,10 @@ func parsePorts(raw string) ([]string, map[runtime.Port][]runtime.PortBinding, e
 		if len(portPair) != 2 {
 			continue
 		}
+		hostPortNum, err := strconv.Atoi(portPair[0])
+		if err != nil || hostPortNum < 1 || hostPortNum > 65535 {
+			return nil, nil, fmt.Errorf("invalid host port %q", portPair[0])
+		}
 		_, portErr := parsePort(portPair[1])
 		if portErr != nil {
 			return nil, nil, fmt.Errorf("invalid port %q: %w", portPair[1], portErr)

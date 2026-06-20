@@ -3,12 +3,14 @@
 package containerd
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -167,7 +169,10 @@ func (r *ContainerdRuntime) buildSpecOpts(image containerdclient.Image, opts run
 	var specMounts []specs.Mount
 	for _, m := range opts.Mounts {
 		if m.Type == runtime.MountTypeVolume {
-			hostPath := fmt.Sprintf("%s/%s", volumeBaseDir, m.Source)
+			if strings.Contains(m.Source, "/") || strings.Contains(m.Source, "..") {
+				return nil, fmt.Errorf("invalid volume name %q: must not contain path separators", m.Source)
+			}
+			hostPath := filepath.Join(volumeBaseDir, m.Source)
 			if mkErr := os.MkdirAll(hostPath, 0o755); mkErr != nil {
 				return nil, fmt.Errorf("create volume dir %s: %w", hostPath, mkErr)
 			}
@@ -250,8 +255,6 @@ func (c *containerdContainer) ID() string { return c.id }
 func (c *containerdContainer) Stop(ctx context.Context) error {
 	ctx = namespaces.WithNamespace(ctx, itestNamespace)
 
-	cniErr := c.cni.Remove(ctx, c.id, c.nsPath)
-
 	_ = c.task.Kill(ctx, syscall.SIGTERM)
 	select {
 	case <-c.exitCh:
@@ -264,6 +267,8 @@ func (c *containerdContainer) Stop(ctx context.Context) error {
 			// best effort — proceed with cleanup
 		}
 	}
+
+	cniErr := c.cni.Remove(ctx, c.id, c.nsPath)
 	_, _ = c.task.Delete(ctx)
 	_ = c.container.Delete(ctx, containerdclient.WithSnapshotCleanup)
 
@@ -296,7 +301,7 @@ type lineWriterImpl struct {
 func (w *lineWriterImpl) Write(p []byte) (int, error) {
 	w.buf = append(w.buf, p...)
 	for {
-		idx := strings.Index(string(w.buf), "\n")
+		idx := bytes.IndexByte(w.buf, '\n')
 		if idx < 0 {
 			break
 		}

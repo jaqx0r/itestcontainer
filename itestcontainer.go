@@ -103,6 +103,11 @@ func detect() runtime.RuntimeName {
 	dockerHost := os.Getenv("DOCKER_HOST")
 	if dockerHost == "" {
 		dockerHost = "/var/run/docker.sock"
+	} else if strings.HasPrefix(dockerHost, "unix://") {
+		dockerHost = strings.TrimPrefix(dockerHost, "unix://")
+	} else if !strings.HasPrefix(dockerHost, "/") {
+		// Non-unix scheme (tcp://, npipe://, etc.) — can't probe as unix socket
+		return runtime.RuntimeDocker
 	}
 	conn, err = net.DialTimeout("unix", dockerHost, 2*time.Second)
 	if err == nil {
