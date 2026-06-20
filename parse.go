@@ -5,10 +5,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/netip"
+	"strconv"
 	"strings"
 
 	"github.com/jaqx0r/itestcontainer/internal/runtime"
-	"github.com/moby/moby/api/types/network"
 )
 
 // parsePorts parses "hostPort:containerPort/proto,..." into exposed ports list and port bindings map.
@@ -25,7 +25,7 @@ func parsePorts(raw string) ([]string, map[runtime.Port][]runtime.PortBinding, e
 		if len(portPair) != 2 {
 			continue
 		}
-		_, portErr := network.ParsePort(portPair[1])
+		_, portErr := parsePort(portPair[1])
 		if portErr != nil {
 			return nil, nil, fmt.Errorf("invalid port %q: %w", portPair[1], portErr)
 		}
@@ -90,13 +90,32 @@ func parseVolumes(raw string, suffix string) []runtime.Mount {
 			volumeName = fmt.Sprintf("bazel-itest-%s", parts[0])
 		}
 		mounts = append(mounts, runtime.Mount{
-			Type:   "volume",
+			Type:   runtime.MountTypeVolume,
 			Source: volumeName,
 			Target: parts[1],
 		})
 	}
 
 	return mounts
+}
+
+// parsePort validates a port spec like "80/tcp". Returns the Port or an error.
+func parsePort(raw string) (runtime.Port, error) {
+	parts := strings.SplitN(raw, "/", 2)
+	if len(parts) != 2 {
+		return "", fmt.Errorf("invalid port format %q: expected <port>/<proto>", raw)
+	}
+	port, err := strconv.Atoi(parts[0])
+	if err != nil || port < 1 || port > 65535 {
+		return "", fmt.Errorf("invalid port number %q", parts[0])
+	}
+	proto := strings.ToLower(parts[1])
+	switch proto {
+	case "tcp", "udp", "sctp":
+	default:
+		return "", fmt.Errorf("invalid protocol %q", proto)
+	}
+	return runtime.Port(raw), nil
 }
 
 // parseLabels parses "key=val,..." label specs into a map.

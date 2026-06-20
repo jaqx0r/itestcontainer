@@ -166,7 +166,7 @@ func (r *ContainerdRuntime) buildSpecOpts(image containerdclient.Image, opts run
 
 	var specMounts []specs.Mount
 	for _, m := range opts.Mounts {
-		if m.Type == "volume" {
+		if m.Type == runtime.MountTypeVolume {
 			hostPath := fmt.Sprintf("%s/%s", volumeBaseDir, m.Source)
 			if mkErr := os.MkdirAll(hostPath, 0o755); mkErr != nil {
 				return nil, fmt.Errorf("create volume dir %s: %w", hostPath, mkErr)
@@ -177,7 +177,7 @@ func (r *ContainerdRuntime) buildSpecOpts(image containerdclient.Image, opts run
 				Destination: m.Target,
 				Options:     []string{"rbind", "rw"},
 			})
-		} else if m.Type == "bind" {
+		} else if m.Type == runtime.MountTypeBind {
 			specMounts = append(specMounts, specs.Mount{
 				Type:        "bind",
 				Source:      m.Source,

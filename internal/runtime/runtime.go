@@ -14,10 +14,17 @@ type PortBinding struct {
 	HostPort string
 }
 
+// MountType represents the type of a mount.
+type MountType string
+
+const (
+	MountTypeBind   MountType = "bind"
+	MountTypeVolume MountType = "volume"
+)
+
 // Mount is a container volume mount.
 type Mount struct {
-	// Type is "volume" (named Docker volume / containerd bind at conventional path) or "bind" (host path).
-	Type   string
+	Type   MountType
 	Source string // volume name or host path
 	Target string // path inside container
 }

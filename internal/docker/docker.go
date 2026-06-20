@@ -39,7 +39,10 @@ func (r *DockerRuntime) Run(ctx context.Context, opts runtime.RunOptions) (runti
 		return nil, fmt.Errorf("pull %s: %w", opts.Image, err)
 	}
 
-	containerConfig := r.buildContainerConfig(opts)
+	containerConfig, err := r.buildContainerConfig(opts)
+	if err != nil {
+		return nil, err
+	}
 	hostConfig := r.buildHostConfig(opts)
 
 	result, err := r.client.ContainerCreate(ctx, mobyclient.ContainerCreateOptions{
@@ -73,13 +76,14 @@ func (r *DockerRuntime) pullImage(ctx context.Context, image string) error {
 	return resp.Wait(ctx)
 }
 
-func (r *DockerRuntime) buildContainerConfig(opts runtime.RunOptions) *mobycontainer.Config {
+func (r *DockerRuntime) buildContainerConfig(opts runtime.RunOptions) (*mobycontainer.Config, error) {
 	exposedPorts := make(mobynetwork.PortSet, len(opts.ExposedPorts))
 	for _, p := range opts.ExposedPorts {
 		port, err := mobynetwork.ParsePort(p)
-		if err == nil {
-			exposedPorts[port] = struct{}{}
+		if err != nil {
+			return nil, fmt.Errorf("invalid exposed port %q: %w", p, err)
 		}
+		exposedPorts[port] = struct{}{}
 	}
 
 	var env []string
@@ -96,7 +100,7 @@ func (r *DockerRuntime) buildContainerConfig(opts runtime.RunOptions) *mobyconta
 	if len(opts.Cmd) > 0 {
 		cfg.Cmd = opts.Cmd
 	}
-	return cfg
+	return cfg, nil
 }
 
 func (r *DockerRuntime) buildHostConfig(opts runtime.RunOptions) *mobycontainer.HostConfig {
@@ -119,13 +123,13 @@ func (r *DockerRuntime) buildHostConfig(opts runtime.RunOptions) *mobycontainer.
 	var mounts []mobymount.Mount
 	for _, m := range opts.Mounts {
 		switch m.Type {
-		case "volume":
+		case runtime.MountTypeVolume:
 			mounts = append(mounts, mobymount.Mount{
 				Type:   mobymount.TypeVolume,
 				Source: m.Source,
 				Target: m.Target,
 			})
-		case "bind":
+		case runtime.MountTypeBind:
 			mounts = append(mounts, mobymount.Mount{
 				Type:   mobymount.TypeBind,
 				Source: m.Source,

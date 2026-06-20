@@ -3,12 +3,12 @@
 // Pass the name of the container, any environment the container needs, volume
 // mounts, port assignments, and labels.
 //
-// Volumes exist in the Docker volume space on the host, but are identified
-// internally with the prefix `bazel-itest-`.  If run inside the Bazel test
-// execution environment (i.e. with the environment variable `TEST_TARGET` set)
-// then that string is hashed and appended to the volume name.  This allows
-// each `itest_service` to run concurrently, avoiding contention and potential
-// locking issues.
+// Volumes are managed by the selected runtime backend (Docker named volumes or
+// containerd host bind mounts), but are identified internally with the prefix
+// `bazel-itest-`.  If run inside the Bazel test execution environment (i.e.
+// with the environment variable `TEST_TARGET` set) then that string is hashed
+// and appended to the volume name.  This allows each `itest_service` to run
+// concurrently, avoiding contention and potential locking issues.
 package main
 
 import (
@@ -16,11 +16,13 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/jaqx0r/itestcontainer/internal/docker"
 	"github.com/jaqx0r/itestcontainer/internal/runtime"
@@ -76,12 +78,25 @@ func run(cfg Config) error {
 	return runWithContext(ctx, stop, cfg)
 }
 
-// detect returns the runtime name to use, checking containerd socket then falling back to docker.
+// detect returns the runtime name to use, probing sockets to verify connectivity.
 func detect() string {
-	if _, err := os.Stat("/run/containerd/containerd.sock"); err == nil {
+	// Try containerd socket
+	conn, err := net.DialTimeout("unix", "/run/containerd/containerd.sock", 2*time.Second)
+	if err == nil {
+		conn.Close()
 		return "containerd"
 	}
-	return "docker"
+	// Try docker socket
+	dockerHost := os.Getenv("DOCKER_HOST")
+	if dockerHost == "" {
+		dockerHost = "/var/run/docker.sock"
+	}
+	conn, err = net.DialTimeout("unix", dockerHost, 2*time.Second)
+	if err == nil {
+		conn.Close()
+		return "docker"
+	}
+	return "docker" // fallback default
 }
 
 // newRuntime constructs the appropriate runtime.Runtime for the given name.

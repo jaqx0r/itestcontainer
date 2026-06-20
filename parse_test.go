@@ -212,8 +212,8 @@ func TestParseVolumes(t *testing.T) {
 				t.Fatalf("mount count: got %d, want %d", len(got), tc.wantCount)
 			}
 			for i, m := range got {
-				if m.Type != "volume" {
-					t.Errorf("mount[%d] type: got %q, want %q", i, m.Type, "volume")
+			if m.Type != runtime.MountTypeVolume {
+				t.Errorf("mount[%d] type: got %q, want %q", i, m.Type, runtime.MountTypeVolume)
 				}
 				if m.Source != tc.wantNames[i] {
 					t.Errorf("mount[%d] source: got %q, want %q", i, m.Source, tc.wantNames[i])
