@@ -7,7 +7,7 @@ require (
 	github.com/containerd/go-cni v1.1.13
 	github.com/moby/moby/api v1.55.0
 	github.com/moby/moby/client v0.5.0
-	github.com/opencontainers/runtime-spec v1.2.1
+	github.com/opencontainers/runtime-spec v1.3.0
 )
 
 require (
