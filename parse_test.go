@@ -44,6 +44,45 @@ func TestParsePorts(t *testing.T) {
 			input:   "8080:notaport",
 			wantErr: true,
 		},
+		{
+			name:             "bare container port defaults to tcp",
+			input:            "8080:80",
+			wantExposedCount: 1,
+			wantBindingKey:   runtime.Port("80/tcp"),
+			wantHostPort:     "8080",
+		},
+		{
+			name:             "explicit udp proto preserved",
+			input:            "8080:80/udp",
+			wantExposedCount: 1,
+			wantBindingKey:   runtime.Port("80/udp"),
+			wantHostPort:     "8080",
+		},
+		{
+			name:    "invalid host port non-numeric",
+			input:   "abc:80/tcp",
+			wantErr: true,
+		},
+		{
+			name:    "host port zero",
+			input:   "0:80/tcp",
+			wantErr: true,
+		},
+		{
+			name:    "host port too high",
+			input:   "70000:80/tcp",
+			wantErr: true,
+		},
+		{
+			name:             "mixed bare and explicit proto",
+			input:            "8080:80,9090:443/tcp",
+			wantExposedCount: 2,
+		},
+		{
+			name:    "container port zero",
+			input:   "8080:0/tcp",
+			wantErr: true,
+		},
 	}
 
 	for _, tc := range tests {
