@@ -29,12 +29,17 @@ func parsePorts(raw string) ([]string, map[runtime.Port][]runtime.PortBinding, e
 		if err != nil || hostPortNum < 1 || hostPortNum > 65535 {
 			return nil, nil, fmt.Errorf("invalid host port %q", portPair[0])
 		}
-		_, portErr := parsePort(portPair[1])
-		if portErr != nil {
-			return nil, nil, fmt.Errorf("invalid port %q: %w", portPair[1], portErr)
+		// Default protocol to tcp if not specified (e.g. "80" → "80/tcp").
+		containerPortRaw := portPair[1]
+		if !strings.Contains(containerPortRaw, "/") {
+			containerPortRaw = containerPortRaw + "/tcp"
 		}
-		port := runtime.Port(portPair[1])
-		exposedPorts = append(exposedPorts, portPair[1])
+		_, portErr := parsePort(containerPortRaw)
+		if portErr != nil {
+			return nil, nil, fmt.Errorf("invalid port %q: %w", containerPortRaw, portErr)
+		}
+		port := runtime.Port(containerPortRaw)
+		exposedPorts = append(exposedPorts, containerPortRaw)
 		portBindings[port] = []runtime.PortBinding{
 			{
 				HostIP:   netip.MustParseAddr("127.0.0.1"),
