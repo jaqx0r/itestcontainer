@@ -1,4 +1,4 @@
-// itestcontainer is a runner shim invoked by a `rules_itest`'s `itest_service` as an `exe` to launch a container image with `testcontainers`.
+// itestcontainer is a runner shim invoked by a `rules_itest`'s `itest_service` as an `exe` to launch a container image.
 //
 // Pass the name of the container, any environment the container needs, volume
 // mounts, port assignments, and labels.
@@ -21,19 +21,19 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"time"
 
-	"github.com/moby/moby/api/types/container"
-	"github.com/testcontainers/testcontainers-go"
+	"github.com/jaqx0r/itestcontainer/internal/docker"
+	"github.com/jaqx0r/itestcontainer/internal/runtime"
 )
 
 var (
-	name   = flag.String("name", "", "`name`(`:tag`) name and optional tag of the container to launch")
-	volume = flag.String("volume", "", "`name`:`path` pairs of volumes to mount.  If `TEST_TARGET` is set in the environment, that value is hashed and appended to the volume name.  The string `bazel-itest-` is always prepended.")
-	env    = flag.String("env", "", "KEY[,KEY] list of environment variable names to pass through to the container")
-	ports  = flag.String("ports", "", "exposed port mappings to pass to container")
-	labels = flag.String("labels", "", "labels to set on container")
-	cmd    = flag.String("cmd", "", "command to run in container (space-separated)")
+	name        = flag.String("name", "", "`name`(`:tag`) name and optional tag of the container to launch")
+	volume      = flag.String("volume", "", "`name`:`path` pairs of volumes to mount.  If `TEST_TARGET` is set in the environment, that value is hashed and appended to the volume name.  The string `bazel-itest-` is always prepended.")
+	env         = flag.String("env", "", "KEY[,KEY] list of environment variable names to pass through to the container")
+	ports       = flag.String("ports", "", "exposed port mappings to pass to container")
+	labels      = flag.String("labels", "", "labels to set on container")
+	cmd         = flag.String("cmd", "", "command to run in container (space-separated)")
+	runtimeFlag = flag.String("runtime", "", "container runtime to use (docker|containerd); empty = auto-detect")
 )
 
 // Config holds all parameters needed to launch a container.
@@ -44,14 +44,9 @@ type Config struct {
 	Volume     string
 	Labels     string
 	Cmd        string
+	Runtime    string
 	TestTarget string
 	EnvLookup  func(string) (string, bool)
-}
-
-type logConsumer struct{}
-
-func (logConsumer) Accept(l testcontainers.Log) {
-	log.Printf("%s: %s", l.LogType, l.Content)
 }
 
 func main() {
@@ -64,6 +59,7 @@ func main() {
 		Volume:     *volume,
 		Labels:     *labels,
 		Cmd:        *cmd,
+		Runtime:    *runtimeFlag,
 		TestTarget: os.Getenv("TEST_TARGET"),
 		EnvLookup:  os.LookupEnv,
 	}
@@ -78,6 +74,24 @@ func run(cfg Config) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return runWithContext(ctx, stop, cfg)
+}
+
+// detect returns the runtime name to use, checking containerd socket then falling back to docker.
+func detect() string {
+	if _, err := os.Stat("/run/containerd/containerd.sock"); err == nil {
+		return "containerd"
+	}
+	return "docker"
+}
+
+// newRuntime constructs the appropriate runtime.Runtime for the given name.
+func newRuntime(ctx context.Context, name string) (runtime.Runtime, error) {
+	switch name {
+	case "containerd":
+		return newContainerdRuntime(ctx)
+	default:
+		return docker.New(ctx)
+	}
 }
 
 func runWithContext(ctx context.Context, stop context.CancelFunc, cfg Config) error {
@@ -107,23 +121,34 @@ func runWithContext(ctx context.Context, stop context.CancelFunc, cfg Config) er
 	}
 	log.Println("Labels:", labelMap)
 
-	lc := logConsumer{}
+	runtimeName := cfg.Runtime
+	if runtimeName == "" {
+		runtimeName = detect()
+	}
+	log.Println("Using runtime:", runtimeName)
 
-	opts := []testcontainers.ContainerCustomizer{
-		testcontainers.WithExposedPorts(exposedPorts...),
-		testcontainers.WithHostConfigModifier(func(hostConfig *container.HostConfig) {
-			hostConfig.PortBindings = portBindings
-		}),
-		testcontainers.WithLogConsumers(lc),
-		testcontainers.WithEnv(environment),
-		testcontainers.WithMounts(mounts...),
-		testcontainers.WithLabels(labelMap),
+	rt, err := newRuntime(ctx, runtimeName)
+	if err != nil {
+		return fmt.Errorf("runtime init (%s): %w", runtimeName, err)
+	}
+	defer rt.Close()
+
+	opts := runtime.RunOptions{
+		Image:        cfg.Name,
+		ExposedPorts: exposedPorts,
+		PortBindings: portBindings,
+		Env:          environment,
+		Mounts:       mounts,
+		Labels:       labelMap,
+		LogLine: func(stream, line string) {
+			log.Printf("%s: %s", stream, line)
+		},
 	}
 	if cfg.Cmd != "" {
-		opts = append(opts, testcontainers.WithCmd(strings.Fields(cfg.Cmd)...))
+		opts.Cmd = strings.Fields(cfg.Cmd)
 	}
 
-	c, err := testcontainers.Run(ctx, cfg.Name, opts...)
+	c, err := rt.Run(ctx, opts)
 
 	wg := sync.WaitGroup{}
 	if c != nil {
@@ -131,15 +156,10 @@ func runWithContext(ctx context.Context, stop context.CancelFunc, cfg Config) er
 		go func() {
 			defer wg.Done()
 			<-ctx.Done()
-			containerName := c.GetContainerID()
-			inspectCtx, inspectCancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer inspectCancel()
-			if n, inspectErr := c.Inspect(inspectCtx); inspectErr == nil {
-				containerName = n.Name
-			}
-			log.Println("Stopping", containerName)
-			if termErr := testcontainers.TerminateContainer(c); termErr != nil {
-				log.Printf("failed to terminate container %s: %v", containerName, termErr)
+			log.Println("Stopping", c.ID())
+			stopCtx := context.Background()
+			if stopErr := c.Stop(stopCtx); stopErr != nil {
+				log.Printf("failed to stop container %s: %v", c.ID(), stopErr)
 			}
 		}()
 	}
@@ -147,7 +167,7 @@ func runWithContext(ctx context.Context, stop context.CancelFunc, cfg Config) er
 	if err != nil {
 		stop()
 		wg.Wait()
-		return fmt.Errorf("testcontainers.Run(%v): %w", cfg.Name, err)
+		return fmt.Errorf("runtime.Run(%v): %w", cfg.Name, err)
 	}
 
 	log.Println("Started", cfg.Name)

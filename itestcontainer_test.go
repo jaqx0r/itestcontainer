@@ -19,6 +19,7 @@ func TestRunWithContextTerminatesContainer(t *testing.T) {
 		Name:      "alpine:latest",
 		Cmd:       "sleep infinity",
 		Labels:    "itestcontainer-test=TestRunWithContextTerminatesContainer",
+		Runtime:   "docker",
 		EnvLookup: func(s string) (string, bool) { return "", false },
 	}
 

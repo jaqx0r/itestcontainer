@@ -7,15 +7,15 @@ import (
 	"net/netip"
 	"strings"
 
+	"github.com/jaqx0r/itestcontainer/internal/runtime"
 	"github.com/moby/moby/api/types/network"
-	"github.com/testcontainers/testcontainers-go"
 )
 
 // parsePorts parses "hostPort:containerPort/proto,..." into exposed ports list and port bindings map.
 // Returns error on malformed input.
-func parsePorts(raw string) ([]string, network.PortMap, error) {
+func parsePorts(raw string) ([]string, map[runtime.Port][]runtime.PortBinding, error) {
 	exposedPorts := make([]string, 0)
-	portBindings := network.PortMap{}
+	portBindings := make(map[runtime.Port][]runtime.PortBinding)
 
 	for portMap := range strings.SplitSeq(raw, ",") {
 		if portMap == "" {
@@ -25,12 +25,13 @@ func parsePorts(raw string) ([]string, network.PortMap, error) {
 		if len(portPair) != 2 {
 			continue
 		}
-		port, portErr := network.ParsePort(portPair[1])
+		_, portErr := network.ParsePort(portPair[1])
 		if portErr != nil {
 			return nil, nil, fmt.Errorf("invalid port %q: %w", portPair[1], portErr)
 		}
+		port := runtime.Port(portPair[1])
 		exposedPorts = append(exposedPorts, portPair[1])
-		portBindings[port] = []network.PortBinding{
+		portBindings[port] = []runtime.PortBinding{
 			{
 				HostIP:   netip.MustParseAddr("127.0.0.1"),
 				HostPort: portPair[0],
@@ -71,8 +72,8 @@ func volumeSuffix(testTarget string) string {
 }
 
 // parseVolumes parses "name:path,..." volume mount specs, prepending "bazel-itest-" and suffix.
-func parseVolumes(raw string, suffix string) []testcontainers.ContainerMount {
-	mounts := make([]testcontainers.ContainerMount, 0)
+func parseVolumes(raw string, suffix string) []runtime.Mount {
+	mounts := make([]runtime.Mount, 0)
 
 	for volumeMount := range strings.SplitSeq(raw, ",") {
 		if volumeMount == "" {
@@ -88,9 +89,10 @@ func parseVolumes(raw string, suffix string) []testcontainers.ContainerMount {
 		} else {
 			volumeName = fmt.Sprintf("bazel-itest-%s", parts[0])
 		}
-		mounts = append(mounts, testcontainers.ContainerMount{
-			Source: testcontainers.GenericVolumeMountSource{Name: volumeName},
-			Target: testcontainers.ContainerMountTarget(parts[1]),
+		mounts = append(mounts, runtime.Mount{
+			Type:   "volume",
+			Source: volumeName,
+			Target: parts[1],
 		})
 	}
 

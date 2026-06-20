@@ -5,8 +5,7 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/moby/moby/api/types/network"
-	"github.com/testcontainers/testcontainers-go"
+	"github.com/jaqx0r/itestcontainer/internal/runtime"
 )
 
 func TestParsePorts(t *testing.T) {
@@ -14,7 +13,7 @@ func TestParsePorts(t *testing.T) {
 		name             string
 		input            string
 		wantExposedCount int
-		wantBindingKey   network.Port
+		wantBindingKey   runtime.Port
 		wantHostPort     string
 		wantErr          bool
 	}{
@@ -27,7 +26,7 @@ func TestParsePorts(t *testing.T) {
 			name:             "single port mapping",
 			input:            "8080:80/tcp",
 			wantExposedCount: 1,
-			wantBindingKey:   network.MustParsePort("80/tcp"),
+			wantBindingKey:   runtime.Port("80/tcp"),
 			wantHostPort:     "8080",
 		},
 		{
@@ -143,7 +142,7 @@ func TestVolumeSuffix(t *testing.T) {
 			want:  "",
 		},
 		{
-			name: "non-empty target",
+			name:  "non-empty target",
 			input: "//some:target",
 			want: func() string {
 				h := sha256.New()
@@ -213,14 +212,13 @@ func TestParseVolumes(t *testing.T) {
 				t.Fatalf("mount count: got %d, want %d", len(got), tc.wantCount)
 			}
 			for i, m := range got {
-				src, ok := m.Source.(testcontainers.GenericVolumeMountSource)
-				if !ok {
-					t.Fatalf("mount[%d] source not GenericVolumeMountSource", i)
+				if m.Type != "volume" {
+					t.Errorf("mount[%d] type: got %q, want %q", i, m.Type, "volume")
 				}
-				if src.Name != tc.wantNames[i] {
-					t.Errorf("mount[%d] name: got %q, want %q", i, src.Name, tc.wantNames[i])
+				if m.Source != tc.wantNames[i] {
+					t.Errorf("mount[%d] source: got %q, want %q", i, m.Source, tc.wantNames[i])
 				}
-				if string(m.Target) != tc.wantTargets[i] {
+				if m.Target != tc.wantTargets[i] {
 					t.Errorf("mount[%d] target: got %q, want %q", i, m.Target, tc.wantTargets[i])
 				}
 			}
