@@ -54,9 +54,17 @@ var bridgeCNIConfig = []byte(`{
   ]
 }`)
 
+// containerdClient is the subset of containerdclient.Client methods used by ContainerdRuntime.
+type containerdClient interface {
+	GetImage(ctx context.Context, ref string) (containerdclient.Image, error)
+	Pull(ctx context.Context, ref string, opts ...containerdclient.RemoteOpt) (containerdclient.Image, error)
+	NewContainer(ctx context.Context, id string, opts ...containerdclient.NewContainerOpts) (containerdclient.Container, error)
+	Close() error
+}
+
 // ContainerdRuntime implements runtime.Runtime using containerd.
 type ContainerdRuntime struct {
-	client *containerdclient.Client
+	client containerdClient
 	cni    gocni.CNI
 }
 
@@ -84,18 +92,28 @@ func (r *ContainerdRuntime) Close() error {
 	return r.client.Close()
 }
 
+// pullImage returns the local image if it exists, otherwise pulls from registry.
+func (r *ContainerdRuntime) pullImage(ctx context.Context, ref string) (containerdclient.Image, error) {
+	image, err := r.client.GetImage(ctx, ref)
+	if err == nil {
+		return image, nil
+	}
+	// Not found locally — pull from registry.
+	image, err = r.client.Pull(ctx, ref, containerdclient.WithPullUnpack)
+	if err != nil {
+		return nil, fmt.Errorf("pull %s: %w", ref, err)
+	}
+	return image, nil
+}
+
 // Run pulls the image, creates a container and task, sets up CNI networking,
 // and starts the task.
 func (r *ContainerdRuntime) Run(ctx context.Context, opts runtime.RunOptions) (runtime.Container, error) {
 	ctx = namespaces.WithNamespace(ctx, itestNamespace)
 
-	image, err := r.client.GetImage(ctx, opts.Image)
+	image, err := r.pullImage(ctx, opts.Image)
 	if err != nil {
-		// Not found locally, pull from registry
-		image, err = r.client.Pull(ctx, opts.Image, containerdclient.WithPullUnpack)
-		if err != nil {
-			return nil, fmt.Errorf("pull %s: %w", opts.Image, err)
-		}
+		return nil, err
 	}
 
 	containerID := generateID()
