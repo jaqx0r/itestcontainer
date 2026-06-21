@@ -89,9 +89,13 @@ func (r *ContainerdRuntime) Close() error {
 func (r *ContainerdRuntime) Run(ctx context.Context, opts runtime.RunOptions) (runtime.Container, error) {
 	ctx = namespaces.WithNamespace(ctx, itestNamespace)
 
-	image, err := r.client.Pull(ctx, opts.Image, containerdclient.WithPullUnpack)
+	image, err := r.client.GetImage(ctx, opts.Image)
 	if err != nil {
-		return nil, fmt.Errorf("pull %s: %w", opts.Image, err)
+		// Not found locally, pull from registry
+		image, err = r.client.Pull(ctx, opts.Image, containerdclient.WithPullUnpack)
+		if err != nil {
+			return nil, fmt.Errorf("pull %s: %w", opts.Image, err)
+		}
 	}
 
 	containerID := generateID()
