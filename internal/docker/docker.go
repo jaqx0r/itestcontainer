@@ -72,6 +72,10 @@ func (r *DockerRuntime) Run(ctx context.Context, opts runtime.RunOptions) (runti
 }
 
 func (r *DockerRuntime) pullImage(ctx context.Context, image string) error {
+	_, err := r.client.ImageInspect(ctx, image)
+	if err == nil {
+		return nil // image exists locally, skip pull
+	}
 	resp, err := r.client.ImagePull(ctx, image, mobyclient.ImagePullOptions{})
 	if err != nil {
 		return err
