@@ -14,9 +14,21 @@ import (
 	"github.com/moby/moby/api/pkg/stdcopy"
 )
 
+// dockerClient is the subset of mobyclient.Client methods used by DockerRuntime.
+type dockerClient interface {
+	Close() error
+	ImageInspect(ctx context.Context, imageID string, opts ...mobyclient.ImageInspectOption) (mobyclient.ImageInspectResult, error)
+	ImagePull(ctx context.Context, refStr string, options mobyclient.ImagePullOptions) (mobyclient.ImagePullResponse, error)
+	ContainerCreate(ctx context.Context, options mobyclient.ContainerCreateOptions) (mobyclient.ContainerCreateResult, error)
+	ContainerStart(ctx context.Context, containerID string, options mobyclient.ContainerStartOptions) (mobyclient.ContainerStartResult, error)
+	ContainerStop(ctx context.Context, containerID string, options mobyclient.ContainerStopOptions) (mobyclient.ContainerStopResult, error)
+	ContainerRemove(ctx context.Context, containerID string, options mobyclient.ContainerRemoveOptions) (mobyclient.ContainerRemoveResult, error)
+	ContainerLogs(ctx context.Context, containerID string, options mobyclient.ContainerLogsOptions) (mobyclient.ContainerLogsResult, error)
+}
+
 // DockerRuntime implements runtime.Runtime using the moby Docker client.
 type DockerRuntime struct {
-	client *mobyclient.Client
+	client dockerClient
 }
 
 // New creates a DockerRuntime using environment-configured Docker connection.
@@ -153,7 +165,7 @@ func (r *DockerRuntime) buildHostConfig(opts runtime.RunOptions) (*mobycontainer
 
 // dockerContainer is a running Docker container handle.
 type dockerContainer struct {
-	client *mobyclient.Client
+	client dockerClient
 	id     string
 }
 
