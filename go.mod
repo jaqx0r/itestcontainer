@@ -2,7 +2,7 @@ module github.com/jaqx0r/itestcontainer
 
 go 1.25.0
 
-toolchain go1.26.2
+toolchain go1.26.4
 
 require (
 	github.com/containerd/containerd/v2 v2.2.5
