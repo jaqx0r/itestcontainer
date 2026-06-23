@@ -4,7 +4,7 @@ go 1.25.0
 
 toolchain go1.26.4
 
-require github.com/jaqx0r/itestcontainer v0.1.2
+require github.com/jaqx0r/itestcontainer v0.1.3
 
 require (
 	cyphar.com/go-pathrs v0.2.1 // indirect
