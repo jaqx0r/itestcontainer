@@ -11,7 +11,14 @@
 | `docker`     | moby/moby client  | Docker bridge networking |
 | `containerd` | containerd/v2     | CNI (bridge + portmap)   |
 
+By default, `itestcontainer` expects images to be pre-loaded into the container runtime.
+
 By default, `itestcontainer` auto-detects the runtime: it probes the containerd socket first (`/run/containerd/containerd.sock`), then falls back to Docker (`DOCKER_HOST` or `/var/run/docker.sock`). Override with `--runtime=docker` or `--runtime=containerd`.
+
+### Image Pulling
+`itestcontainer` assumes images are available in the local runtime cache. If an image is missing, it will fail to start.
+
+You can enable automatic image pulling by using the `PullImages` flag in `RunOptions` (if using as a Go library) or via corresponding command-line flags. This functionality should be used sparingly or only for local development, as it introduces external dependencies during test execution.
 
 ### containerd Prerequisites
 
@@ -25,9 +32,12 @@ By default, `itestcontainer` auto-detects the runtime: it probes the containerd 
 | `--name`    | Container image to start (required)                                       |
 | `--runtime` | Runtime backend: `docker` or `containerd` (default: auto-detect)         |
 | `--ports`   | Port mappings, comma-separated `<host>:<container>` (e.g. `8080:80/tcp`) |
+| `--pull-images` | Enable automatic image pulling if not found locally (default: false). |
 | `--env`     | Environment variables to pass through, comma-separated                    |
 | `--volume`  | Volume mounts, comma-separated `<source>:<target>`                        |
 | `--labels`  | Container labels, comma-separated `<key>=<value>`                         |
+
+By default, `itestcontainer` assumes images are already loaded into the container runtime. The `--pull-images` flag should only be used if automatic pulling is required for local development workflows.
 
 Example:
 

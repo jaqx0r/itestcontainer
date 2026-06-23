@@ -46,6 +46,7 @@ type RunOptions struct {
 	PortBindings map[Port][]PortBinding
 	Mounts       []Mount
 	Labels       map[string]string
+	PullImages   bool
 	LogLine      func(stream, line string) // nil = no logging
 }
 
