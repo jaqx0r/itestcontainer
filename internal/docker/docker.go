@@ -35,8 +35,14 @@ func (r *DockerRuntime) Close() error {
 
 // Run pulls the image, creates, and starts a container with the given options.
 func (r *DockerRuntime) Run(ctx context.Context, opts runtime.RunOptions) (runtime.Container, error) {
-	if err := r.pullImage(ctx, opts.Image); err != nil {
-		return nil, fmt.Errorf("pull %s: %w", opts.Image, err)
+	if opts.PullImages {
+		if err := r.pullImage(ctx, opts.Image); err != nil {
+			return nil, fmt.Errorf("pull %s: %w", opts.Image, err)
+		}
+	} else {
+		if _, err := r.client.ImageInspect(ctx, opts.Image); err != nil {
+			return nil, fmt.Errorf("image %s not found: %w", opts.Image, err)
+		}
 	}
 
 	containerConfig, err := r.buildContainerConfig(opts)
