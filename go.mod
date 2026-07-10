@@ -1,11 +1,11 @@
 module github.com/jaqx0r/itestcontainer
 
-go 1.25.0
+go 1.26.3
 
 toolchain go1.26.4
 
 require (
-	github.com/containerd/containerd/v2 v2.2.5
+	github.com/containerd/containerd/v2 v2.3.3
 	github.com/containerd/go-cni v1.1.13
 	github.com/moby/moby/api v1.55.0
 	github.com/moby/moby/client v0.5.0
