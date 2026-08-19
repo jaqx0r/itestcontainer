@@ -2,7 +2,7 @@ module github.com/jaqx0r/itestcontainer/test
 
 go 1.26.3
 
-toolchain go1.26.6
+toolchain go1.26.7
 
 require github.com/jaqx0r/itestcontainer v0.1.3
 
