@@ -7,7 +7,7 @@ toolchain go1.27.1
 require (
 	github.com/containerd/containerd/v2 v2.4.1
 	github.com/containerd/go-cni v1.1.14
-	github.com/moby/moby/api v1.56.0
+	github.com/moby/moby/api v1.56.1
 	github.com/moby/moby/client v0.6.0
 	github.com/opencontainers/runtime-spec v1.3.0
 )
